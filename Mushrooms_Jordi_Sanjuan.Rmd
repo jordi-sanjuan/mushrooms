@@ -1,0 +1,288 @@
+---
+title: "'To eat, or not to eat: that is the question.' An application of machine learning techniques to distinguish edible from poisonous mushrooms with 100% accuracy"
+author: "Jordi Sanjuán Belda"
+date: "13/12/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(GGally)) install.packages("GGally", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(Rborist)) install.packages("Rborist", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(caret)
+library(data.table)
+library(gridExtra)
+library(GGally)
+library(rpart)
+library(Rborist)
+data <- read.csv("mushrooms.csv")
+data <- data %>%
+  mutate(class=as.factor(class),
+         cap.shape=as.factor(cap.shape),
+         cap.surface=as.factor(cap.surface),
+         cap.color=as.factor(cap.color),
+         bruises=as.factor(bruises),
+         odor=as.factor(odor),
+         gill.attachment=as.factor(gill.attachment),
+         gill.spacing=as.factor(gill.spacing),
+         gill.size=as.factor(gill.size),
+         gill.color=as.factor(gill.color),
+         stalk.shape=as.factor(stalk.shape),
+         stalk.root=as.factor(stalk.root),
+         stalk.surface.above.ring=as.factor(stalk.surface.above.ring),
+         stalk.surface.below.ring=as.factor(stalk.surface.below.ring),
+         stalk.color.above.ring=as.factor(stalk.color.above.ring),
+         stalk.color.below.ring=as.factor(stalk.color.below.ring),
+         veil.type=as.factor(veil.type),
+         veil.color=as.factor(veil.color),
+         ring.number=as.factor(ring.number),
+         ring.type=as.factor(ring.type),
+         spore.print.color=as.factor(spore.print.color),
+         population=as.factor(population),
+         habitat=as.factor(habitat))
+```
+
+# Introduction
+
+The present work aims to develop a prediction algorithm that allows to guess, from certain physical characteristics, if a mushrooms are edible or not.
+
+To do so, the first thing that will be done is to become familiar with the data in the following section (Data overview: a first descriptive approach). Then, a classification tree and a random forest model will be applied, the results will be discussed and, finally, some conclusions will be drawn.
+
+This work is done as part of the ninth and final course of the Professional Certificate in Data Science at Harvard University. Its goal is to put into practice, in an autonomous way, all the knowledge and skills acquired during the previous eight courses of the program.
+
+# Data overview: a first descriptive approach
+
+The database chosen to carry out this work includes a sample of 8,124 mushrooms catalogued as edible or as poisonous. In turn, a series of 22 characteristics (visual, olfactory, shape, touch ...) of each mushroom are collected.
+
+There is no single, clear or even less simple rule to distinguish whether a mushroom is edible or not from a few features, and that is where the machine learning techniques to recognize more complex hidden rules will come in.
+
+The variables present in the database (all of them categorical and not ordinal) and their codification are the following:
+
+*class:* edible = e, poisonous = p
+
+*cap.shape:* bell = b, conical = c, convex = x, flat = f, knobbed = k, sunken = s
+
+*cap.surface:* fibrous = f, grooves = g, scaly = y, smooth = s
+
+*cap.color:* brown = n, buff = b, cinnamon = c, gray = g, green = r, pink = p, purple = u, red = e, white = w, yellow = y
+
+*bruises:* bruises = t, no = f
+
+*odor:* almond = a, anise = l, creosote = c, fishy = y, foul = f,  musty = m, none = n, pungent = p, spicy = s
+
+*gill.attachment:* attached = a, descending = d, free = f, notched = n
+
+*gill.spacing:* close = c, crowded = w, distant = d
+
+*gill.size:* broad = b, narrow = n
+
+*gill.color:* black = k, brown = n, buff = b, chocolate = h, gray = g,  green = r, orange = o, pink = p, purple = u, red = e, white 
+= w, yellow = y
+
+*stalk.shape:* enlarging = e, tapering = t
+
+*stalk.root:* bulbous = b, club = c, cup = u, equal = e, rhizomorphs = z, rooted = r, missing = ?
+
+*stalk.surface.above.ring:* fibrous = f, scaly = y, silky = k, smooth = s
+
+*stalk.surface.below.ring:* fibrous = f, scaly = y, silky = k, smooth = s
+
+*stalk.color.above.ring:* brown = n, buff = b, cinnamon = c, gray = g, orange = o,  pink = p, red = e, white = w, yellow = y
+
+*stalk.color.below.ring:* brown = n, buff = b, cinnamon = c, gray = g, orange = o,  pink = p, red = e, white = w, yellow = y
+
+*veil.type:* partial = p, universal = u
+
+*veil.color:* brown = n, orange = o, white = w, yellow = y
+
+*ring.number:* none = n, one = o, two = t
+
+*ring.type:* cobwebby = c, evanescent = e, flaring = f, large = l, none = n, pendant = p, sheathing = s, zone = z
+
+*spore.print.color:* black = k, brown = n, buff = b, chocolate = h, green = r,  orange = o, purple = u, white = w, yellow = y
+
+*population:* abundant = a, clustered = c, numerous = n, scattered = s, several = v, solitary = y
+
+*habitat:* grasses = g, leaves = l, meadows = m, paths = p, urban = u, waste = w, woods = d
+
+More information about the data can be obtained in the following links:
+
+<https://www.kaggle.com/uciml/mushroom-classification>
+
+<https://archive.ics.uci.edu/ml/datasets/Mushroom>
+
+The first step, after converting the variables into factors to be processed correctly, is to make a first general observation of the content of all the variables.
+
+```{r summary data, echo=FALSE}
+summary(data)
+```
+
+The first thing that comes out of this is that the variable *veil.type* has only one value (p for partial, there is no mushroom catalogued with the u for universal). Therefore, it does not provide any information and will be dropped from now on.
+
+Another important fact is to observe what proportion of mushrooms in the sample are edible and what proportion are poisonous. The following plot shows that they are in fact quite balanced. 51.8% of the mushrooms in the database are edible, which means that there will be no problems of low prevalence.
+
+```{r mushrooms by class, echo=FALSE}
+data <- data %>%select(-veil.type)
+data %>% ggplot(aes(class,fill=class)) + geom_bar()
+```
+
+It is also logical to observe graphically the distribution according to the other variables, distinguishing between edible and poisonous mushrooms.
+
+```{r Distribution of features by class, echo=FALSE, fig.height = 15, fig.width = 9}
+p1 <- data %>% ggplot(aes(cap.shape,fill=class)) + geom_bar()
+p2 <- data %>% ggplot(aes(cap.surface,fill=class)) + geom_bar()
+p3 <- data %>% ggplot(aes(cap.color,fill=class)) + geom_bar()
+p4 <- data %>% ggplot(aes(bruises,fill=class)) + geom_bar()
+p5 <- data %>% ggplot(aes(odor,fill=class)) + geom_bar()
+p6 <- data %>% ggplot(aes(gill.attachment,fill=class)) + geom_bar()
+p7 <- data %>% ggplot(aes(gill.spacing,fill=class)) + geom_bar()
+p8 <- data %>% ggplot(aes(gill.size,fill=class)) + geom_bar()
+p9 <- data %>% ggplot(aes(gill.color,fill=class)) + geom_bar()
+p10 <- data %>% ggplot(aes(stalk.shape,fill=class)) + geom_bar()
+p11 <- data %>% ggplot(aes(stalk.root,fill=class)) + geom_bar()
+p12 <- data %>% ggplot(aes(stalk.surface.above.ring,fill=class)) + geom_bar()
+p13 <- data %>% ggplot(aes(stalk.surface.below.ring,fill=class)) + geom_bar()
+p14 <- data %>% ggplot(aes(stalk.color.above.ring,fill=class)) + geom_bar()
+p15 <- data %>% ggplot(aes(stalk.color.below.ring,fill=class)) + geom_bar()
+p16 <- data %>% ggplot(aes(veil.color,fill=class)) + geom_bar()
+p17 <- data %>% ggplot(aes(ring.number,fill=class)) + geom_bar()
+p18 <- data %>% ggplot(aes(ring.type,fill=class)) + geom_bar()
+p19 <- data %>% ggplot(aes(spore.print.color,fill=class)) + geom_bar()
+p20 <- data %>% ggplot(aes(population,fill=class)) + geom_bar()
+p21 <- data %>% ggplot(aes(habitat,fill=class)) + geom_bar()
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,
+             p13,p14,p15,p16,p17,p18,p19,p20,p21,
+             ncol=3)
+```
+
+The reader can appreciate that there are some differences. Edible mushrooms are more common among those with certain traits, and vice versa. For example, most unscented mushrooms (*odor* = n) are edible, while those with a foul odor are usually not; among mushrooms with bruises, most are edible, while those without bruises are mostly poisonous; if the spore print color is black or brown, the mushroom is usually edible, and conversely if it is chocolate or white; and so on. These characteristics are the ones that will help the models to classify the mushrooms.
+
+Now it will be checked whether there are also correlations between some of these features. Do they usually appear together? Separately? Or is it completely random? This can be analyzed through a correlation matrix, after making some conversions, since the data are categorical, and not numerical.
+
+```{r Correlation matrix, echo=FALSE, fig.height = 20, fig.width = 20}
+data %>% mutate(mushroomId = 1:8124) %>%
+  gather (feature,type,-mushroomId) %>%
+  mutate (value = 1) %>%
+  unite (featype,feature,type,sep="_") %>%
+  spread (featype,value) %>%
+  gather (feature,value,-mushroomId) %>%
+  mutate (value = case_when (value=="1"~1,TRUE~0)) %>%
+  spread (feature,value) %>%
+  select(-mushroomId,-class_e,-class_p) %>%
+  ggcorr()
+```
+
+Indeed, it can be seen that there are elements that relate to others, either in a positive or a negative way.
+
+Is it possible, from all this information, to generate a prediction algorithm to classify mushrooms as edible or poisonous based on their features?
+
+# Method
+
+This is a classification problem based on categorical variables, for which it has been considered that classification trees and random forest would be appropriate techniques. To do this, the database is first broken down into a training set with 80% of the observations and a test set with the remaining 20%.
+
+Two different models will be tested: classification tree and random forest.
+
+## Classification Tree
+
+The first approach considered is that of the decision tree, which is basically a flow chart or yes or no questions by partitioning the predictors. The predictions at the ends are referred as nodes. Since the outcomes in this case are categorical, we call this a classification tree.
+
+To apply this method, 25 complexity parameters are tested, from 0 to 0.05. The one that gets a better result in terms of precision is 0. With higher values, the accuracy decreases (as can be seen in the next plot), so this is the selected parameter.
+
+```{r Best tune Classification Tree, echo=FALSE}
+set.seed(1,sample.kind="Rounding")
+test_index<-createDataPartition(y=data$class,times=1,p=0.2,list=FALSE)
+train_set <- data[-test_index,]
+test_set <- data[test_index,]
+set.seed(1,sample.kind="Rounding")
+fit_tree <- train(class~.,
+                  data=train_set,
+                  method="rpart",
+                  tuneGrid=data.frame(cp=seq(0,0.05,len=25)))
+fit_tree$bestTune
+```
+
+```{r Accuracy per complexity parameter, echo=FALSE}
+ggplot(fit_tree,highlight=TRUE)
+```
+
+## Random Forest
+
+Now, a random forest model is applied. Since there are only two possible outcomes and both have a noticeable presence in the data, there is no point in tuning the minimum node size. This is not the case for the number of selected predictors. These can be up to 95 (all combinations of the 21 explanatory variables with all their levels), so all options from 2 to 95 are tested. The best adjustment in terms of accuracy occurs with 12 predictors.
+
+```{r Best tune Random Forest, echo=FALSE}
+set.seed(1,sample.kind="Rounding")
+fit_rf<-train(class~.,
+              method="Rborist",
+              tuneGrid=data.frame(predFixed=seq(2,95,1),minNode=2),
+              data=train_set)
+fit_rf$bestTune
+```
+
+Nevertheless, as can be seen in the following plot, the results are quite similar between 8 and 40 predictors (approximately), close to 100%. From that point on, it declines but very slightly.
+
+```{r Accuracy per number of predictors, echo=FALSE}
+ggplot(fit_rf,highlight=TRUE)
+```
+
+# Results
+
+The models have not yet been applied in the test set, so they may be over-adjusted. To check their actual validity they should be tested on a data sample that has not been used for training.
+
+## Classification Tree
+
+Before testing it, it is convenient to observe the classification tree that has been generated in the previous section. It is a tree with 10 end nodes. The > or < 0.5 of the plot should be interpreted as a question. If this characteristic (variable name + code letter) is fulfilled, the value is 1; if it is not fulfilled, it is 0. With this information, we answer each question and go to the right if the answer is yes, and to the left if the answer is no. For example, in the first splitting rule, the tree asks if the mushroom has no odor (*odorn* = n value of the *odor* variable, i.e. no odor). If it does not have it (affirmative answer), it follows to the right, if it does smell (negative answer), it follows to the left. One of the main advantages of decision trees is their easy interpretation.
+
+```{r Classification tree, echo=FALSE, fig.height=7, fig.width=7}
+plot(fit_tree$finalModel,margin=0.1)
+text(fit_tree$finalModel,cex=0.75)
+```
+
+Now it is time to validate the model with the test set. The complete results of the confusion matrix are shown below.
+
+```{r Confusion Matrix Classification Tree, echo=FALSE}
+y_hat_tree <- predict(fit_tree,test_set)
+confusionMatrix(y_hat_tree,test_set$class)
+```
+
+It can be seen that, although the overall accuracy achieved is really high (99.82%), there are 3 poisonous mushrooms that have been classified as edible. This is very dangerous! In this case, specificity is much more important than sensitivity (which does reach 100%), and a small error like these three can be fatal.
+
+The random forest method is designed to correct some problems of over-adjustment and instability of decision trees. That's why this has been the next step: will the random forest model be able to correct these errors?
+
+## Random Forest
+
+As seen in the previous section, the final random forest model with 12 randomly selected predictors achieves 100% accuracy, although it still needs to be validated in the test set.
+
+Random forest models are not as easily interpreted as decision trees. However, it is possible to know that the most important variables for the classification made by the random forest are the following:
+
+```{r Variable Importance (list), echo=FALSE}
+varImp(fit_rf)
+```
+
+```{r Variable Importance (plot), echo=FALSE, fig.height=10, fig.width=10}
+ggplot(varImp(fit_rf))
+```
+
+Finally, it is checked that the model is indeed 100% accurate also in the test set. The complete confusion matrix is now provided and it is observed that, logically, there are no false positives or false negatives, and therefore the sensitivity and specificity are also both 100%.
+
+```{r Confusion Matrix Random Forest, echo=FALSE}
+y_hat_rf<-predict(fit_rf,test_set)
+confusionMatrix(y_hat_rf,test_set$class)
+```
+
+# Conclusion
+
+In this work, two classification algorithms have been developed to distinguish edible from poisonous mushrooms based on a series of characteristics. Specifically, a classification tree and a random forest have been applied, the latter achieving 100% accuracy. The final model is, therefore, difficult to improve.
+
+Nevertheless, this does not mean that the classification tree, with an accuracy of 99.82%, should be discarded altogether. Before the decision to eat or not a mushroom, the advantage that the classification tree offers is its easy and intuitive interpretation, so following the different splitting rules it would be possible to reach a conclusion by ourselves. Though, accepting a minimum risk of 0.18%.
+
+However, it is worth making some observations. This is a prototypical problem in which specificity (proportion of negative outcomes, i.e. poisonous mushrooms, correctly identified) is much more important than sensitivity (proportion of positive outcomes, i.e. edible mushrooms, correctly identified). In other words, it is more dangerous to eat a poisonous mushroom than to throw away an edible one.
+
+This has not been a problem because it has been possible to achieve 100% accuracy (and therefore specificity). But if it had not been possible to reach that level of accuracy, it would have been necessary to optimize the model, not from the overall accuracy, but by seeking the highest possible specificity. Or, at least, weigh it more than the sensitivity. Here again, it would have been possible to seek a better fit of the model by exploring other techniques and combining them in the form of an ensemble.
+
+These aspects will be taken into account for future research. But for the moment it is already possible to eat mushrooms without excessive worries. Bon appetit!
